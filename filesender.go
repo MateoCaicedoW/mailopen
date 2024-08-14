@@ -5,15 +5,14 @@ import (
 	_ "embed"
 	"fmt"
 	"html"
-	"html/template"
 	"io"
 	"mime"
 	"os"
 	"path"
 	"regexp"
 	"strings"
+	"text/template"
 
-	"github.com/gobuffalo/buffalo/mail"
 	"github.com/gofrs/uuid"
 	"github.com/pkg/browser"
 )
@@ -51,8 +50,6 @@ type contentConfig struct {
 	preformatter   func(string) string
 }
 
-// FileSender implements the Sender interface to be used
-// within buffalo mailer generated package.
 type FileSender struct {
 	Open bool
 	// dir is the directory to save the files to (attachments and email templates).
@@ -82,13 +79,7 @@ func (ps FileSender) shouldOpen(contentType string) bool {
 	return false
 }
 
-// Send sends an email to Sendgrid for delivery, it assumes
-// bodies[0] is HTML body and bodies[1] is text.
-func (ps FileSender) Send(m mail.Message) error {
-	if len(m.Bodies) < 2 {
-		return fmt.Errorf("mailopen: expected at least 2 bodies, got %d", len(m.Bodies))
-	}
-
+func (ps FileSender) Send(m Email) error {
 	for _, v := range m.Bodies {
 		if !ps.shouldOpen(v.ContentType) {
 			continue
@@ -114,13 +105,11 @@ func (ps FileSender) Send(m mail.Message) error {
 		content := re.ReplaceAllString(v.Content, fmt.Sprintf("$1\n%v\n$2$3", header))
 		tmpName := strings.ReplaceAll(v.ContentType, "/", "_") + "_body"
 
-		path, err := ps.saveEmailBody(content, tmpName, m)
+		fmt.Println("re", fmt.Sprintf("$1\n%v\n$2$3", header))
+
+		path, err := ps.saveEmailBody(content, tmpName, m.Attachments)
 		if err != nil {
 			return err
-		}
-
-		if Testing {
-			continue
 		}
 
 		if err := browser.OpenFile(path); err != nil {
@@ -131,10 +120,10 @@ func (ps FileSender) Send(m mail.Message) error {
 	return nil
 }
 
-func (ps FileSender) saveEmailBody(content, tmpName string, m mail.Message) (string, error) {
+func (ps FileSender) saveEmailBody(content, tmpName string, attachments []Attachment) (string, error) {
 	id := uuid.Must(uuid.NewV4())
 
-	afs, err := ps.saveAttachmentFiles(m.Attachments)
+	afs, err := ps.saveAttachmentFiles(attachments)
 	if err != nil {
 		return "", fmt.Errorf("mailopen: failed to save attachments: %w", err)
 	}
@@ -147,20 +136,20 @@ func (ps FileSender) saveEmailBody(content, tmpName string, m mail.Message) (str
 	}
 
 	filePath := fmt.Sprintf("%s_%s.html", tmpName, id)
-	if Testing {
-		filePath = fmt.Sprintf("%s.html", tmpName)
-	}
 
 	path := path.Join(ps.dir, filePath)
 	err = os.WriteFile(path, tpl.Bytes(), 0644)
+	if err != nil {
+		return "", fmt.Errorf("mailopen: failed to write email body: %w", err)
+	}
 
-	return path, err
+	return path, nil
 }
 
-func (ps FileSender) saveAttachmentFiles(Attachments []mail.Attachment) ([]AttFile, error) {
+func (ps FileSender) saveAttachmentFiles(attachments []Attachment) ([]AttFile, error) {
 	var afs []AttFile
 
-	for _, a := range Attachments {
+	for _, a := range attachments {
 		if len(a.Name) > 50 {
 			a.Name = a.Name[:50]
 		}
@@ -171,9 +160,6 @@ func (ps FileSender) saveAttachmentFiles(Attachments []mail.Attachment) ([]AttFi
 		}
 
 		filePath := path.Join(ps.dir, fmt.Sprintf("%s_%s%s", uuid.Must(uuid.NewV4()), a.Name, exts[0]))
-		if Testing {
-			filePath = path.Join(ps.dir, fmt.Sprintf("%s%s", a.Name, exts[0]))
-		}
 
 		b, err := io.ReadAll(a.Reader)
 		if err != nil {

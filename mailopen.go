@@ -1,20 +1,10 @@
 package mailopen
 
 import (
-	"fmt"
 	"os"
 )
 
-var Testing = false
-
 const MailOpenDirKey = "MAILOPEN_DIR"
-
-// New creates a sender that writes emails into disk
-func New() FileSender {
-	fmt.Println("Deprecated: use WithOptions instead.")
-
-	return WithOptions()
-}
 
 // WithOptions creates a sender that writes emails into disk
 // And applies the passed options.
