@@ -15,39 +15,32 @@ var file []byte
 var html string
 
 func main() {
-	sender := mailopen.WithOptions(
+	sender := mailopen.New(
 		mailopen.Only("text/html"),
 	)
 
-	email := mailopen.Email{
+	email := email{
 		From:    "a@test.com",
 		To:      []string{"a@test.com"},
 		Subject: "Test",
 		Bodies: []mailopen.Body{
-			{
-				ContentType: "text/html",
-				Content:     html,
+			Body{
+				contentType: "text/html",
+				content:     html,
 			},
-			{
-				ContentType: "text/plain",
-				Content:     "Some Message",
+			Body{
+				contentType: "text/plain",
+				content:     "Some plain text",
 			},
 		},
 		Attachments: []mailopen.Attachment{
-			{
-				Name:        "file.txt",
-				ContentType: "text/plain",
-				Reader:      strings.NewReader("Some file content"),
-			},
-			{
-				Name:        "file.pdf",
-				ContentType: "application/pdf",
-				Reader:      strings.NewReader(string(file)),
+			Attachment{
+				contentType: "application/pdf",
+				name:        "blank.pdf",
+				reader:      strings.NewReader(string(file)),
 			},
 		},
 	}
 
-	if err := sender.Send(email); err != nil {
-		panic(err)
-	}
+	sender.Send(email)
 }

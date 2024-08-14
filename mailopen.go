@@ -8,7 +8,7 @@ const MailOpenDirKey = "MAILOPEN_DIR"
 
 // WithOptions creates a sender that writes emails into disk
 // And applies the passed options.
-func WithOptions(options ...Option) FileSender {
+func New(options ...Option) FileSender {
 	s := FileSender{
 		Open: true,
 		dir:  getEnv(MailOpenDirKey, os.TempDir()),

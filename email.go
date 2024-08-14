@@ -2,24 +2,23 @@ package mailopen
 
 import "io"
 
-type Email struct {
-	From        string
-	To          []string
-	Subject     string
-	Bodies      []Body
-	Attachments []Attachment
-	CC          []string
-	Bcc         []string
+type Email interface {
+	GetFrom() string
+	GetTo() []string
+	GetSubject() string
+	GetBodies() []Body
+	GetAttachments() []Attachment
+	GetCC() []string
+	GetBcc() []string
 }
 
-// Body is the body of the email
-type Body struct {
-	ContentType string
-	Content     string
+type Body interface {
+	ContentType() string
+	Content() string
 }
 
-type Attachment struct {
-	ContentType string
-	Name        string
-	Reader      io.Reader
+type Attachment interface {
+	ContentType() string
+	Name() string
+	Reader() io.Reader
 }

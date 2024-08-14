@@ -80,34 +80,33 @@ func (ps FileSender) shouldOpen(contentType string) bool {
 }
 
 func (ps FileSender) Send(m Email) error {
-	for _, v := range m.Bodies {
-		if !ps.shouldOpen(v.ContentType) {
+	for _, v := range m.GetBodies() {
+		if !ps.shouldOpen(v.ContentType()) {
 			continue
 		}
 
-		cc := config[v.ContentType]
+		cc := config[v.ContentType()]
+		content := v.Content()
 		if cc.preformatter != nil {
-			v.Content = cc.preformatter(v.Content)
+			content = cc.preformatter(v.Content())
 		}
 
 		header := fmt.Sprintf(
 			cc.headerTemplate,
 
-			html.EscapeString(m.From),
-			strings.Join(m.To, ","),
-			strings.Join(m.CC, ","),
-			strings.Join(m.Bcc, ","),
+			html.EscapeString(m.GetFrom()),
+			strings.Join(m.GetTo(), ","),
+			strings.Join(m.GetCC(), ","),
+			strings.Join(m.GetBcc(), ","),
 
-			html.EscapeString(m.Subject),
+			html.EscapeString(m.GetSubject()),
 		)
 
 		var re = regexp.MustCompile(cc.replaceRegexp)
-		content := re.ReplaceAllString(v.Content, fmt.Sprintf("$1\n%v\n$2$3", header))
-		tmpName := strings.ReplaceAll(v.ContentType, "/", "_") + "_body"
+		content = re.ReplaceAllString(content, fmt.Sprintf("$1\n%v\n$2$3", header))
+		tmpName := strings.ReplaceAll(v.ContentType(), "/", "_") + "_body"
 
-		fmt.Println("re", fmt.Sprintf("$1\n%v\n$2$3", header))
-
-		path, err := ps.saveEmailBody(content, tmpName, m.Attachments)
+		path, err := ps.saveEmailBody(content, tmpName, m.GetAttachments())
 		if err != nil {
 			return err
 		}
@@ -150,30 +149,31 @@ func (ps FileSender) saveAttachmentFiles(attachments []Attachment) ([]AttFile, e
 	var afs []AttFile
 
 	for _, a := range attachments {
-		if len(a.Name) > 50 {
-			a.Name = a.Name[:50]
+		name := a.Name()
+		if len(name) > 50 {
+			name = name[:50]
 		}
 
-		exts, err := mime.ExtensionsByType(a.ContentType)
+		exts, err := mime.ExtensionsByType(a.ContentType())
 		if err != nil {
-			return []AttFile{}, fmt.Errorf("mailopen: failed to get extension for content type %s: %w", a.ContentType, err)
+			return []AttFile{}, fmt.Errorf("mailopen: failed to get extension for content type %s: %w", a.ContentType(), err)
 		}
 
-		filePath := path.Join(ps.dir, fmt.Sprintf("%s_%s%s", uuid.Must(uuid.NewV4()), a.Name, exts[0]))
+		filePath := path.Join(ps.dir, fmt.Sprintf("%s_%s%s", uuid.Must(uuid.NewV4()), name, exts[0]))
 
-		b, err := io.ReadAll(a.Reader)
+		b, err := io.ReadAll(a.Reader())
 		if err != nil {
-			return []AttFile{}, fmt.Errorf("mailopen: failed to read attachment %s: %w", a.Name, err)
+			return []AttFile{}, fmt.Errorf("mailopen: failed to read attachment %s: %w", name, err)
 		}
 
 		err = os.WriteFile(filePath, b, 0644)
 		if err != nil {
-			return []AttFile{}, fmt.Errorf("mailopen: failed to write attachment %s: %w", a.Name, err)
+			return []AttFile{}, fmt.Errorf("mailopen: failed to write attachment %s: %w", name, err)
 		}
 
 		afs = append(afs, AttFile{
 			Path: filePath,
-			Name: a.Name,
+			Name: name,
 		})
 	}
 
